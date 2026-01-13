@@ -37,6 +37,6 @@ soupsieve==2.6
 tenacity==9.0.0
 tzdata==2024.2
 urllib3==2.2.3
-virtualenv==20.27.1
+virtualenv==20.36.1
 webencodings==0.5.1
 yfinance==0.2.49
