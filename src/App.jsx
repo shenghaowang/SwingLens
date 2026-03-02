@@ -10,7 +10,7 @@ import StockList from './components/StockList'
 import { fetchStockData } from './utils/fetchStockData'
 import { computeIndicators, computeSignals } from './utils/indicators'
 
-const DEFAULT_MAS = [20, 60, 250]
+const DEFAULT_MAS = [30, 60, 120]
 
 export default function App() {
   const [ticker, setTicker] = useState('')
