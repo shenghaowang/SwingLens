@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import SearchBar from './components/SearchBar'
-import PriceChart from './components/PriceChart'
-import MacdChart from './components/MacdChart'
-import RsiChart from './components/RsiChart'
+import ChartPanel from './components/ChartPanel'
 import SignalSummary from './components/SignalSummary'
 import TimeRangeSelector from './components/TimeRangeSelector'
 import MAToggle from './components/MAToggle'
@@ -42,23 +40,9 @@ export default function App() {
     }
   }
 
-  const handleSearch = (symbol) => {
-    setTicker(symbol)
-    loadData(symbol, range)
-  }
-
-  const handleRangeChange = (newRange) => {
-    setRange(newRange)
-    if (ticker) loadData(ticker, newRange)
-  }
-
-  const handleBack = () => {
-    setTicker('')
-    setData(null)
-    setIndicators(null)
-    setSignals(null)
-    setError(null)
-  }
+  const handleSearch = (symbol) => { setTicker(symbol); loadData(symbol, range) }
+  const handleRangeChange = (r) => { setRange(r); if (ticker) loadData(ticker, r) }
+  const handleBack = () => { setTicker(''); setData(null); setIndicators(null); setSignals(null); setError(null) }
 
   const isChartView = data || loading
 
@@ -81,14 +65,11 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Chart view ── */}
         {isChartView && (
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <button onClick={handleBack} className="text-gray-400 hover:text-white text-sm transition-colors">
-                  ← Watchlist
-                </button>
+                <button onClick={handleBack} className="text-gray-400 hover:text-white text-sm transition-colors">← Watchlist</button>
                 <h2 className="text-lg font-semibold text-white">{ticker}</h2>
               </div>
               <TimeRangeSelector selected={range} onChange={handleRangeChange} />
@@ -102,30 +83,22 @@ export default function App() {
             ) : (
               <>
                 <SignalSummary signals={signals} />
-
-                {/* MA toggles + signal legend */}
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
                   <div className="flex gap-4 text-xs text-gray-400">
-                    <span><span className="text-green-400 mr-1">▲</span>BUY signal</span>
-                    <span><span className="text-red-400 mr-1">▼</span>SELL signal</span>
+                    <span><span className="text-green-400 mr-1">▲</span>BUY</span>
+                    <span><span className="text-red-400 mr-1">▼</span>SELL</span>
                   </div>
                 </div>
-
-                <div className="bg-gray-900/50 rounded-xl p-4 space-y-4 border border-gray-800">
-                  <PriceChart data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} />
-                  <MacdChart data={data} indicators={indicators} />
-                  <RsiChart data={data} indicators={indicators} />
+                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                  <ChartPanel data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} />
                 </div>
               </>
             )}
           </>
         )}
 
-        {/* ── Watchlist home ── */}
-        {!isChartView && !error && (
-          <StockList onSelectTicker={handleSearch} />
-        )}
+        {!isChartView && !error && <StockList onSelectTicker={handleSearch} />}
       </main>
     </div>
   )
