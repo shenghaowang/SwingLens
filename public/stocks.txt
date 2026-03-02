@@ -1,0 +1,60 @@
+# Popular Stocks - one ticker per line, lines starting with # are ignored
+# Mega Cap Tech
+AAPL
+MSFT
+NVDA
+GOOGL
+AMZN
+META
+TSLA
+AVGO
+ORCL
+ADBE
+# Financials
+JPM
+BAC
+GS
+V
+MA
+BRK-B
+WFC
+MS
+AXP
+BLK
+# Healthcare
+JNJ
+UNH
+LLY
+ABBV
+MRK
+PFE
+TMO
+ABT
+DHR
+ISRG
+# Consumer
+AMZN
+WMT
+COST
+TGT
+HD
+MCD
+SBUX
+NKE
+# Energy
+XOM
+CVX
+COP
+SLB
+# ETFs
+SPY
+QQQ
+IWM
+GLD
+TLT
+# High-growth Tech
+PLTR
+SNOW
+NET
+CRWD
+MSTR
