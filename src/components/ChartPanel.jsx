@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createChart, CrosshairMode } from 'lightweight-charts'
 import { MA_COLORS } from '../utils/indicators'
+import VolumeProfile from './VolumeProfile'
+
+const PRICE_CHART_HEIGHT = 400
 
 const RANGE_SECONDS = {
   '1M':  30  * 86400,
@@ -35,8 +38,17 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
   const macdRef   = useRef(null)
   const rsiRef    = useRef(null)
   const chartsRef = useRef([])
+  const [visibleData, setVisibleData] = useState(null)
 
   const hasVolume = data?.some(d => d.volume != null && d.volume > 0)
+
+  // Compute price range for visible data
+  const priceRange = visibleData?.length
+    ? {
+        min: Math.min(...visibleData.map(d => d.low).filter(Boolean)),
+        max: Math.max(...visibleData.map(d => d.high).filter(Boolean)),
+      }
+    : null
 
   useEffect(() => {
     if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
@@ -44,8 +56,8 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     chartsRef.current.forEach(c => { try { c.remove() } catch {} })
     chartsRef.current = []
 
-    // ── Price chart ──
-    const price = makeChart(priceRef.current, 380, true)
+    // ── Price ──
+    const price = makeChart(priceRef.current, PRICE_CHART_HEIGHT, true)
     const candle = price.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444',
       borderUpColor: '#22c55e', borderDownColor: '#ef4444',
@@ -72,25 +84,20 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       })))
     }
 
+    // ── Volume bar chart ──
     const allCharts = [price]
-
-    // ── Volume chart (if data available) ──
     if (hasVolume && volRef.current) {
       const vol = makeChart(volRef.current, 100, true)
-      const volSeries = vol.addHistogramSeries({
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'volume',
-      })
+      const volSeries = vol.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume' })
       vol.priceScale('volume').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } })
       volSeries.setData(data.map(d => ({
-        time: d.time,
-        value: d.volume,
+        time: d.time, value: d.volume,
         color: d.close >= d.open ? '#22c55e' : '#ef4444',
       })))
       allCharts.push(vol)
     }
 
-    // ── MACD chart ──
+    // ── MACD ──
     const macd = makeChart(macdRef.current, 150, true)
     if (indicators?.macdResult) {
       const { macdResult, macdOffset } = indicators
@@ -105,7 +112,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     }
     allCharts.push(macd)
 
-    // ── RSI chart ──
+    // ── RSI ──
     const rsi = makeChart(rsiRef.current, 130, false)
     if (indicators?.rsiResult) {
       const { rsiResult, rsiOffset } = indicators
@@ -119,7 +126,21 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     chartsRef.current = allCharts
     setVisibleRange(allCharts, data, range)
 
-    // ── Sync all time scales ──
+    // Update visible data for volume profile
+    const updateVisibleData = () => {
+      try {
+        const logRange = price.timeScale().getVisibleLogicalRange()
+        if (!logRange) return
+        const from = Math.max(0, Math.floor(logRange.from))
+        const to   = Math.min(data.length - 1, Math.ceil(logRange.to))
+        setVisibleData(data.slice(from, to + 1))
+      } catch {}
+    }
+
+    price.timeScale().subscribeVisibleLogicalRangeChange(updateVisibleData)
+    updateVisibleData()
+
+    // Sync all charts
     let isSyncing = false
     allCharts.forEach((source, si) => {
       source.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
@@ -133,7 +154,6 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       })
     })
 
-    // ── ResizeObserver ──
     const ro = new ResizeObserver(() => {
       const w = priceRef.current?.clientWidth
       if (w) allCharts.forEach(c => { try { c.applyOptions({ width: w }) } catch {} })
@@ -156,7 +176,18 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
 
   return (
     <div>
-      <div ref={priceRef} className="w-full overflow-hidden" />
+      {/* Price chart with volume profile overlay */}
+      <div style={{ position: 'relative' }}>
+        <div ref={priceRef} className="w-full overflow-hidden" />
+        {hasVolume && priceRange && (
+          <VolumeProfile
+            data={visibleData || data}
+            chartHeight={PRICE_CHART_HEIGHT}
+            priceRange={priceRange}
+          />
+        )}
+      </div>
+
       {hasVolume && (
         <div className="pt-1">
           <div className="text-xs text-gray-500 mb-0.5">Volume</div>
