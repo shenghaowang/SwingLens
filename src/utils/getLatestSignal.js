@@ -1,12 +1,10 @@
-import { computeIndicators, computeSignals } from './indicators'
+import { computeIndicators, computeCurrentSignal } from './indicators'
 
 export function getLatestSignal(data) {
   if (!data || data.length < 30) return 'NEUTRAL'
   try {
     const ind = computeIndicators(data)
-    const signals = computeSignals(data, ind)
-    if (!signals.length) return 'NEUTRAL'
-    return signals[signals.length - 1].type
+    return computeCurrentSignal(data, ind)
   } catch {
     return 'NEUTRAL'
   }

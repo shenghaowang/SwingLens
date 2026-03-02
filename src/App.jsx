@@ -6,7 +6,7 @@ import TimeRangeSelector from './components/TimeRangeSelector'
 import MAToggle from './components/MAToggle'
 import StockList from './components/StockList'
 import { fetchStockData } from './utils/fetchStockData'
-import { computeIndicators, computeSignals } from './utils/indicators'
+import { computeIndicators, computeSignals, computeCurrentSignal } from './utils/indicators'
 
 const DEFAULT_MAS = [30, 60, 120]
 
@@ -16,6 +16,7 @@ export default function App() {
   const [data, setData] = useState(null)
   const [indicators, setIndicators] = useState(null)
   const [signals, setSignals] = useState(null)
+  const [currentSignal, setCurrentSignal] = useState('NEUTRAL')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [enabledMAs, setEnabledMAs] = useState(DEFAULT_MAS)
@@ -26,13 +27,16 @@ export default function App() {
     setData(null)
     setIndicators(null)
     setSignals(null)
+    setCurrentSignal('NEUTRAL')
     try {
-      const raw = await fetchStockData(symbol)   // always 5Y
+      const raw = await fetchStockData(symbol)
       const ind = computeIndicators(raw)
       const sig = computeSignals(raw, ind)
+      const cur = computeCurrentSignal(raw, ind)
       setData(raw)
       setIndicators(ind)
       setSignals(sig)
+      setCurrentSignal(cur)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -41,7 +45,10 @@ export default function App() {
   }
 
   const handleSearch = (symbol) => { setTicker(symbol); loadData(symbol) }
-  const handleBack = () => { setTicker(''); setData(null); setIndicators(null); setSignals(null); setError(null) }
+  const handleBack = () => {
+    setTicker(''); setData(null); setIndicators(null)
+    setSignals(null); setCurrentSignal('NEUTRAL'); setError(null)
+  }
 
   const isChartView = data || loading
 
@@ -81,12 +88,12 @@ export default function App() {
               </div>
             ) : (
               <>
-                <SignalSummary signals={signals} />
+                <SignalSummary signal={currentSignal} ticker={ticker} price={data?.[data.length - 1]?.close} date={new Date(data?.[data.length - 1]?.time * 1000).toLocaleDateString('en-CA')} />
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
                   <div className="flex gap-4 text-xs text-gray-400">
-                    <span><span className="text-green-400 mr-1">▲</span>BUY</span>
-                    <span><span className="text-red-400 mr-1">▼</span>SELL</span>
+                    <span><span className="text-green-400 mr-1">▲</span>BUY signal</span>
+                    <span><span className="text-red-400 mr-1">▼</span>SELL signal</span>
                   </div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">

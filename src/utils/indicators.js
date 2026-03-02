@@ -52,3 +52,19 @@ export function computeSignals(data, indicators) {
   }
   return signals
 }
+
+// ── Current signal as of today ──
+export function computeCurrentSignal(data, indicators) {
+  const { macdResult, rsiResult } = indicators
+  if (!macdResult.length || !rsiResult.length) return 'NEUTRAL'
+
+  const latestMacd = macdResult[macdResult.length - 1]
+  const latestRsi  = rsiResult[rsiResult.length - 1]
+
+  const macdBullish = latestMacd.MACD > latestMacd.signal
+  const macdBearish = latestMacd.MACD < latestMacd.signal
+
+  if (macdBullish && latestRsi < 40) return 'BUY'
+  if (macdBearish && latestRsi > 60) return 'SELL'
+  return 'NEUTRAL'
+}
