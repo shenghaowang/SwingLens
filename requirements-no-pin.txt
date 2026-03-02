@@ -1,7 +1,0 @@
-numpy
-matplotlib
-yfinance
-pandas
-pre-commit
-plotly
-pytest

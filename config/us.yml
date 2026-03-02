@@ -1,3 +1,0 @@
-univ: "config/etf_us.txt"
-output: "data/{yyyy}/{ticker}.csv"
-benchmark: "SPY"
