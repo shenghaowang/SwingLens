@@ -4,26 +4,27 @@ import PriceChart from './components/PriceChart'
 import MacdChart from './components/MacdChart'
 import RsiChart from './components/RsiChart'
 import SignalSummary from './components/SignalSummary'
+import TimeRangeSelector from './components/TimeRangeSelector'
 import { fetchStockData } from './utils/fetchStockData'
 import { computeIndicators, computeSignals } from './utils/indicators'
 
 export default function App() {
   const [ticker, setTicker] = useState('')
+  const [range, setRange] = useState('1Y')
   const [data, setData] = useState(null)
   const [indicators, setIndicators] = useState(null)
   const [signals, setSignals] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleSearch = async (symbol) => {
+  const loadData = async (symbol, selectedRange) => {
     setLoading(true)
     setError(null)
     setData(null)
     setIndicators(null)
     setSignals(null)
-    setTicker(symbol)
     try {
-      const raw = await fetchStockData(symbol)
+      const raw = await fetchStockData(symbol, selectedRange)
       const ind = computeIndicators(raw)
       const sig = computeSignals(raw, ind)
       setData(raw)
@@ -34,6 +35,16 @@ export default function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSearch = (symbol) => {
+    setTicker(symbol)
+    loadData(symbol, range)
+  }
+
+  const handleRangeChange = (newRange) => {
+    setRange(newRange)
+    if (ticker) loadData(ticker, newRange)
   }
 
   return (
@@ -55,14 +66,17 @@ export default function App() {
 
         {data && (
           <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">{ticker}</h2>
-              <div className="flex gap-4 text-xs text-gray-400">
-                <span><span className="inline-block w-3 h-0.5 bg-yellow-400 mr-1 align-middle"></span>SMA 50</span>
-                <span><span className="inline-block w-3 h-0.5 bg-purple-500 mr-1 align-middle"></span>SMA 200</span>
-                <span><span className="text-green-400 mr-1">▲</span>BUY</span>
-                <span><span className="text-red-400 mr-1">▼</span>SELL</span>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold text-white">{ticker}</h2>
+                <div className="flex gap-4 text-xs text-gray-400">
+                  <span><span className="inline-block w-3 h-0.5 bg-yellow-400 mr-1 align-middle"></span>SMA 50</span>
+                  <span><span className="inline-block w-3 h-0.5 bg-purple-500 mr-1 align-middle"></span>SMA 200</span>
+                  <span><span className="text-green-400 mr-1">▲</span>BUY</span>
+                  <span><span className="text-red-400 mr-1">▼</span>SELL</span>
+                </div>
               </div>
+              <TimeRangeSelector selected={range} onChange={handleRangeChange} />
             </div>
 
             <SignalSummary signals={signals} />
@@ -80,6 +94,13 @@ export default function App() {
             <div className="text-5xl mb-4">📈</div>
             <p className="text-lg">Enter a ticker symbol to start analysing</p>
             <p className="text-sm mt-2">e.g. AAPL · TSLA · NVDA · SPY</p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-center py-20 text-gray-500">
+            <div className="text-4xl mb-4 animate-pulse">⏳</div>
+            <p>Loading {ticker}...</p>
           </div>
         )}
       </main>
