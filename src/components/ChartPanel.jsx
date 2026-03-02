@@ -85,7 +85,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       volSeries.setData(data.map(d => ({
         time: d.time,
         value: d.volume,
-        color: d.close >= d.open ? '#22c55e55' : '#ef444455',
+        color: d.close >= d.open ? '#22c55e' : '#ef4444',
       })))
       allCharts.push(vol)
     }
