@@ -26,26 +26,26 @@ function makeChart(container, height, hideTimeScale = false) {
 function setVisibleRange(charts, data, range) {
   const to = data[data.length - 1].time
   const from = to - (RANGE_SECONDS[range] ?? RANGE_SECONDS['1Y'])
-  charts.forEach(c => {
-    try { c.timeScale().setVisibleRange({ from, to }) } catch {}
-  })
+  charts.forEach(c => { try { c.timeScale().setVisibleRange({ from, to }) } catch {} })
 }
 
 export default function ChartPanel({ data, indicators, signals, enabledMAs, range }) {
-  const priceRef = useRef(null)
-  const macdRef  = useRef(null)
-  const rsiRef   = useRef(null)
+  const priceRef  = useRef(null)
+  const volRef    = useRef(null)
+  const macdRef   = useRef(null)
+  const rsiRef    = useRef(null)
   const chartsRef = useRef([])
 
-  // Build charts when data changes
+  const hasVolume = data?.some(d => d.volume != null && d.volume > 0)
+
   useEffect(() => {
     if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
 
     chartsRef.current.forEach(c => { try { c.remove() } catch {} })
     chartsRef.current = []
 
-    // ── Price ──
-    const price = makeChart(priceRef.current, 400, true)
+    // ── Price chart ──
+    const price = makeChart(priceRef.current, 380, true)
     const candle = price.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444',
       borderUpColor: '#22c55e', borderDownColor: '#ef4444',
@@ -72,8 +72,26 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       })))
     }
 
-    // ── MACD ──
-    const macd = makeChart(macdRef.current, 160, true)
+    const allCharts = [price]
+
+    // ── Volume chart (if data available) ──
+    if (hasVolume && volRef.current) {
+      const vol = makeChart(volRef.current, 100, true)
+      const volSeries = vol.addHistogramSeries({
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'volume',
+      })
+      vol.priceScale('volume').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } })
+      volSeries.setData(data.map(d => ({
+        time: d.time,
+        value: d.volume,
+        color: d.close >= d.open ? '#22c55e55' : '#ef444455',
+      })))
+      allCharts.push(vol)
+    }
+
+    // ── MACD chart ──
+    const macd = makeChart(macdRef.current, 150, true)
     if (indicators?.macdResult) {
       const { macdResult, macdOffset } = indicators
       macd.addLineSeries({ color: '#38bdf8', lineWidth: 1, title: 'MACD' })
@@ -85,9 +103,10 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
         color: v.histogram >= 0 ? '#22c55e' : '#ef4444',
       })))
     }
+    allCharts.push(macd)
 
-    // ── RSI ──
-    const rsi = makeChart(rsiRef.current, 140, false)
+    // ── RSI chart ──
+    const rsi = makeChart(rsiRef.current, 130, false)
     if (indicators?.rsiResult) {
       const { rsiResult, rsiOffset } = indicators
       const rsiData = rsiResult.map((v, i) => ({ time: data[i + rsiOffset].time, value: v }))
@@ -95,14 +114,12 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       rsi.addLineSeries({ color: '#ef444466', lineWidth: 1, lineStyle: 2 }).setData(rsiData.map(d => ({ time: d.time, value: 70 })))
       rsi.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: 2 }).setData(rsiData.map(d => ({ time: d.time, value: 30 })))
     }
+    allCharts.push(rsi)
 
-    const allCharts = [price, macd, rsi]
     chartsRef.current = allCharts
-
-    // Set initial visible range
     setVisibleRange(allCharts, data, range)
 
-    // ── Sync time scales + re-trigger autoScale ──
+    // ── Sync all time scales ──
     let isSyncing = false
     allCharts.forEach((source, si) => {
       source.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
@@ -130,7 +147,6 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     }
   }, [data, indicators, signals, enabledMAs])
 
-  // Update visible range when selector changes (no refetch needed)
   useEffect(() => {
     if (chartsRef.current.length && data?.length) {
       setVisibleRange(chartsRef.current, data, range)
@@ -140,7 +156,13 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
 
   return (
     <div>
-      <div ref={priceRef} className="w-full rounded-t-lg overflow-hidden" />
+      <div ref={priceRef} className="w-full overflow-hidden" />
+      {hasVolume && (
+        <div className="pt-1">
+          <div className="text-xs text-gray-500 mb-0.5">Volume</div>
+          <div ref={volRef} className="w-full overflow-hidden" />
+        </div>
+      )}
       <div className="pt-2">
         <div className="text-xs text-gray-500 mb-0.5">MACD (12, 26, 9)</div>
         <div ref={macdRef} className="w-full overflow-hidden" />
