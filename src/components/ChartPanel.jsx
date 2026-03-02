@@ -2,6 +2,15 @@ import { useEffect, useRef } from 'react'
 import { createChart, CrosshairMode } from 'lightweight-charts'
 import { MA_COLORS } from '../utils/indicators'
 
+const RANGE_SECONDS = {
+  '1M':  30  * 86400,
+  '3M':  90  * 86400,
+  '6M':  180 * 86400,
+  '1Y':  365 * 86400,
+  '3Y':  3 * 365 * 86400,
+  '5Y':  5 * 365 * 86400,
+}
+
 function makeChart(container, height, hideTimeScale = false) {
   return createChart(container, {
     width: container.clientWidth,
@@ -11,24 +20,31 @@ function makeChart(container, height, hideTimeScale = false) {
     crosshair: { mode: CrosshairMode.Normal },
     rightPriceScale: { borderColor: '#334155', autoScale: true },
     timeScale: { borderColor: '#334155', timeVisible: true, visible: !hideTimeScale },
-    handleScale: { axisPressedMouseMove: { time: true, price: false } },
   })
 }
 
-export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
+function setVisibleRange(charts, data, range) {
+  const to = data[data.length - 1].time
+  const from = to - (RANGE_SECONDS[range] ?? RANGE_SECONDS['1Y'])
+  charts.forEach(c => {
+    try { c.timeScale().setVisibleRange({ from, to }) } catch {}
+  })
+}
+
+export default function ChartPanel({ data, indicators, signals, enabledMAs, range }) {
   const priceRef = useRef(null)
   const macdRef  = useRef(null)
   const rsiRef   = useRef(null)
-  const charts   = useRef([])
+  const chartsRef = useRef([])
 
+  // Build charts when data changes
   useEffect(() => {
     if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
 
-    // Destroy previous
-    charts.current.forEach(c => { try { c.remove() } catch {} })
-    charts.current = []
+    chartsRef.current.forEach(c => { try { c.remove() } catch {} })
+    chartsRef.current = []
 
-    // ── Price chart ──
+    // ── Price ──
     const price = makeChart(priceRef.current, 400, true)
     const candle = price.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444',
@@ -41,10 +57,8 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
       for (const period of (enabledMAs || [])) {
         const ma = indicators.mas[period]
         if (!ma) continue
-        price.addLineSeries({
-          color: MA_COLORS[period], lineWidth: 1, title: `MA${period}`,
-          priceLineVisible: false, lastValueVisible: true,
-        }).setData(ma.values.map((v, i) => ({ time: data[i + ma.offset].time, value: v })))
+        price.addLineSeries({ color: MA_COLORS[period], lineWidth: 1, title: `MA${period}`, priceLineVisible: false })
+          .setData(ma.values.map((v, i) => ({ time: data[i + ma.offset].time, value: v })))
       }
     }
 
@@ -58,7 +72,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
       })))
     }
 
-    // ── MACD chart ──
+    // ── MACD ──
     const macd = makeChart(macdRef.current, 160, true)
     if (indicators?.macdResult) {
       const { macdResult, macdOffset } = indicators
@@ -66,15 +80,13 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
         .setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.MACD })))
       macd.addLineSeries({ color: '#f97316', lineWidth: 1, title: 'Signal' })
         .setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.signal })))
-      macd.addHistogramSeries({ priceFormat: { type: 'price' } })
-        .setData(macdResult.map((v, i) => ({
-          time: data[i + macdOffset].time,
-          value: v.histogram,
-          color: v.histogram >= 0 ? '#22c55e' : '#ef4444',
-        })))
+      macd.addHistogramSeries().setData(macdResult.map((v, i) => ({
+        time: data[i + macdOffset].time, value: v.histogram,
+        color: v.histogram >= 0 ? '#22c55e' : '#ef4444',
+      })))
     }
 
-    // ── RSI chart ──
+    // ── RSI ──
     const rsi = makeChart(rsiRef.current, 140, false)
     if (indicators?.rsiResult) {
       const { rsiResult, rsiOffset } = indicators
@@ -85,47 +97,55 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
     }
 
     const allCharts = [price, macd, rsi]
-    charts.current = allCharts
+    chartsRef.current = allCharts
 
-    price.timeScale().fitContent()
+    // Set initial visible range
+    setVisibleRange(allCharts, data, range)
 
-    // ── Sync time scales + re-trigger autoScale on zoom/pan ──
+    // ── Sync time scales + re-trigger autoScale ──
     let isSyncing = false
     allCharts.forEach((source, si) => {
-      source.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (isSyncing || !range) return
+      source.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
+        if (isSyncing || !logicalRange) return
         isSyncing = true
         allCharts.forEach((target, ti) => {
-          if (ti !== si) target.timeScale().setVisibleLogicalRange(range)
-          // Re-apply autoScale so y-axis refits to visible bars
+          if (ti !== si) target.timeScale().setVisibleLogicalRange(logicalRange)
           target.priceScale('right').applyOptions({ autoScale: true })
         })
         isSyncing = false
       })
     })
 
-    // ── Resize observer (more reliable than window resize) ──
+    // ── ResizeObserver ──
     const ro = new ResizeObserver(() => {
       const w = priceRef.current?.clientWidth
-      if (w) allCharts.forEach(c => c.applyOptions({ width: w }))
+      if (w) allCharts.forEach(c => { try { c.applyOptions({ width: w }) } catch {} })
     })
     ro.observe(priceRef.current)
 
     return () => {
       ro.disconnect()
       allCharts.forEach(c => { try { c.remove() } catch {} })
-      charts.current = []
+      chartsRef.current = []
     }
   }, [data, indicators, signals, enabledMAs])
 
+  // Update visible range when selector changes (no refetch needed)
+  useEffect(() => {
+    if (chartsRef.current.length && data?.length) {
+      setVisibleRange(chartsRef.current, data, range)
+      chartsRef.current.forEach(c => c.priceScale('right').applyOptions({ autoScale: true }))
+    }
+  }, [range, data])
+
   return (
-    <div className="space-y-0">
+    <div>
       <div ref={priceRef} className="w-full rounded-t-lg overflow-hidden" />
-      <div className="px-1 pt-2">
+      <div className="pt-2">
         <div className="text-xs text-gray-500 mb-0.5">MACD (12, 26, 9)</div>
         <div ref={macdRef} className="w-full overflow-hidden" />
       </div>
-      <div className="px-1 pt-2">
+      <div className="pt-2">
         <div className="text-xs text-gray-500 mb-0.5">RSI (14)</div>
         <div ref={rsiRef} className="w-full rounded-b-lg overflow-hidden" />
       </div>

@@ -20,14 +20,14 @@ export default function App() {
   const [error, setError] = useState(null)
   const [enabledMAs, setEnabledMAs] = useState(DEFAULT_MAS)
 
-  const loadData = async (symbol, selectedRange) => {
+  const loadData = async (symbol) => {
     setLoading(true)
     setError(null)
     setData(null)
     setIndicators(null)
     setSignals(null)
     try {
-      const raw = await fetchStockData(symbol, selectedRange)
+      const raw = await fetchStockData(symbol)   // always 5Y
       const ind = computeIndicators(raw)
       const sig = computeSignals(raw, ind)
       setData(raw)
@@ -40,8 +40,7 @@ export default function App() {
     }
   }
 
-  const handleSearch = (symbol) => { setTicker(symbol); loadData(symbol, range) }
-  const handleRangeChange = (r) => { setRange(r); if (ticker) loadData(ticker, r) }
+  const handleSearch = (symbol) => { setTicker(symbol); loadData(symbol) }
   const handleBack = () => { setTicker(''); setData(null); setIndicators(null); setSignals(null); setError(null) }
 
   const isChartView = data || loading
@@ -69,10 +68,10 @@ export default function App() {
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <button onClick={handleBack} className="text-gray-400 hover:text-white text-sm transition-colors">← Watchlist</button>
+                <button onClick={handleBack} className="text-gray-400 hover:text-white text-sm">← Watchlist</button>
                 <h2 className="text-lg font-semibold text-white">{ticker}</h2>
               </div>
-              <TimeRangeSelector selected={range} onChange={handleRangeChange} />
+              <TimeRangeSelector selected={range} onChange={setRange} />
             </div>
 
             {loading ? (
@@ -91,7 +90,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                  <ChartPanel data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} />
+                  <ChartPanel data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} range={range} />
                 </div>
               </>
             )}
