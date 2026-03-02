@@ -1,60 +1,68 @@
-# Popular Stocks - one ticker per line, lines starting with # are ignored
-# Mega Cap Tech
-AAPL
+# Format: [Theme Name] for group headers, tickers below, # for comments
+
+[Hyperscalers]
 MSFT
-NVDA
-GOOGL
 AMZN
+GOOGL
 META
-TSLA
-AVGO
 ORCL
+SNOW
+
+[AI & Semiconductors]
+NVDA
+AVGO
+AMD
+QCOM
+ARM
+AMAT
+PLTR
+
+[Big Tech]
+AAPL
+TSLA
 ADBE
-# Financials
+CRM
+NOW
+
+[Moonshots]
+MSTR
+CRWD
+NET
+RKLB
+IONQ
+SMCI
+
+[Financials]
 JPM
-BAC
 GS
 V
 MA
-BRK-B
-WFC
+BLK
 MS
 AXP
-BLK
-# Healthcare
+
+[Value & Dividend]
+BRK-B
+WMT
+COST
+HD
 JNJ
+PG
+KO
+
+[Defensive]
 UNH
 LLY
 ABBV
 MRK
 PFE
-TMO
-ABT
-DHR
-ISRG
-# Consumer
-AMZN
-WMT
-COST
-TGT
-HD
-MCD
-SBUX
-NKE
-# Energy
 XOM
 CVX
-COP
-SLB
-# ETFs
+
+[ETFs & Indices]
 SPY
 QQQ
 IWM
 GLD
 TLT
-# High-growth Tech
-PLTR
-SNOW
-NET
-CRWD
-MSTR
+VIX
