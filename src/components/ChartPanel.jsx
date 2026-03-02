@@ -7,10 +7,14 @@ function makeChart(container, height, hideTimeScale = false) {
     layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
     crosshair: { mode: CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#334155' },
+    rightPriceScale: { borderColor: '#334155', autoScale: true },
     timeScale: { borderColor: '#334155', timeVisible: true, visible: !hideTimeScale },
     height,
   })
+}
+
+function autoScaleChart(chart) {
+  chart.priceScale('right').applyOptions({ autoScale: true })
 }
 
 export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
@@ -22,7 +26,6 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
   useEffect(() => {
     if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
 
-    // Destroy previous charts
     charts.current.forEach(c => c.remove())
     charts.current = []
 
@@ -39,8 +42,10 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
       for (const period of (enabledMAs || [])) {
         const ma = indicators.mas[period]
         if (!ma) continue
-        const s = price.addLineSeries({ color: MA_COLORS[period], lineWidth: 1, title: `MA${period}`, priceLineVisible: false })
-        s.setData(ma.values.map((v, i) => ({ time: data[i + ma.offset].time, value: v })))
+        price.addLineSeries({
+          color: MA_COLORS[period], lineWidth: 1, title: `MA${period}`,
+          priceLineVisible: false, lastValueVisible: true,
+        }).setData(ma.values.map((v, i) => ({ time: data[i + ma.offset].time, value: v })))
       }
     }
 
@@ -81,26 +86,29 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
     }
 
     charts.current = [price, macd, rsi]
-
     price.timeScale().fitContent()
 
-    // ── Sync time scales ──
-    const syncRange = (source, targets) => {
-      let isSyncing = false
+    // ── Sync time scales + auto-scale y-axis on every range change ──
+    let isSyncing = false
+    const allCharts = [price, macd, rsi]
+
+    allCharts.forEach((source, si) => {
       source.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (isSyncing || !range) return
         isSyncing = true
-        targets.forEach(t => t.timeScale().setVisibleLogicalRange(range))
+        allCharts.forEach((target, ti) => {
+          if (ti !== si) target.timeScale().setVisibleLogicalRange(range)
+        })
+        // Re-trigger autoScale on all charts so y-axis fills the view
+        allCharts.forEach(c => autoScaleChart(c))
         isSyncing = false
       })
-    }
-    syncRange(price, [macd, rsi])
-    syncRange(macd, [price, rsi])
-    syncRange(rsi,  [price, macd])
+    })
 
-    // ── Resize handler ──
+    // ── Resize ──
     const handleResize = () => {
-      charts.current.forEach(c => c.applyOptions({ width: priceRef.current?.clientWidth }))
+      const w = priceRef.current?.clientWidth
+      if (w) charts.current.forEach(c => c.applyOptions({ width: w }))
     }
     window.addEventListener('resize', handleResize)
 
@@ -114,11 +122,11 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
   return (
     <div className="space-y-0">
       <div ref={priceRef} className="w-full rounded-t-lg overflow-hidden" />
-      <div className="px-1 pt-1">
+      <div className="px-1 pt-2">
         <div className="text-xs text-gray-500 mb-0.5">MACD (12, 26, 9)</div>
         <div ref={macdRef} className="w-full overflow-hidden" />
       </div>
-      <div className="px-1 pt-1">
+      <div className="px-1 pt-2">
         <div className="text-xs text-gray-500 mb-0.5">RSI (14)</div>
         <div ref={rsiRef} className="w-full rounded-b-lg overflow-hidden" />
       </div>
