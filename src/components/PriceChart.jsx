@@ -8,6 +8,7 @@ export default function PriceChart({ data, indicators, signals }) {
   useEffect(() => {
     if (!data || data.length === 0 || !containerRef.current) return
 
+    // Destroy any existing chart
     if (chartRef.current) {
       chartRef.current.remove()
       chartRef.current = null
@@ -23,19 +24,15 @@ export default function PriceChart({ data, indicators, signals }) {
     })
     chartRef.current = chart
 
-    // Candlestick series
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#22c55e', downColor: '#ef4444',
       borderUpColor: '#22c55e', borderDownColor: '#ef4444',
       wickUpColor: '#22c55e', wickDownColor: '#ef4444',
     })
-    const candleData = data.map(d => ({
-      time: d.time,
-      open: d.open, high: d.high, low: d.low, close: d.close,
-    }))
-    candleSeries.setData(candleData)
+    candleSeries.setData(data.map(d => ({
+      time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
+    })))
 
-    // SMA 50
     if (indicators?.sma50) {
       const sma50Series = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, title: 'SMA50' })
       sma50Series.setData(
@@ -43,7 +40,6 @@ export default function PriceChart({ data, indicators, signals }) {
       )
     }
 
-    // SMA 200
     if (indicators?.sma200) {
       const sma200Series = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA200' })
       sma200Series.setData(
@@ -51,23 +47,30 @@ export default function PriceChart({ data, indicators, signals }) {
       )
     }
 
-    // Buy/Sell markers
     if (signals && signals.length > 0) {
-      const markers = signals.map(s => ({
+      candleSeries.setMarkers(signals.map(s => ({
         time: s.time,
         position: s.type === 'BUY' ? 'belowBar' : 'aboveBar',
         color: s.type === 'BUY' ? '#22c55e' : '#ef4444',
         shape: s.type === 'BUY' ? 'arrowUp' : 'arrowDown',
         text: s.type,
-      }))
-      candleSeries.setMarkers(markers)
+      })))
     }
 
     chart.timeScale().fitContent()
 
-    const handleResize = () => chart.applyOptions({ width: containerRef.current.clientWidth })
+    const handleResize = () => {
+      if (chartRef.current) chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+    }
     window.addEventListener('resize', handleResize)
-    return () => { window.removeEventListener('resize', handleResize); chart.remove() }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+      }
+    }
   }, [data, indicators, signals])
 
   return <div ref={containerRef} className="w-full rounded-lg overflow-hidden" />

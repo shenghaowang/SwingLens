@@ -7,7 +7,11 @@ export default function RsiChart({ data, indicators }) {
 
   useEffect(() => {
     if (!indicators?.rsiResult || !containerRef.current) return
-    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null }
+
+    if (chartRef.current) {
+      chartRef.current.remove()
+      chartRef.current = null
+    }
 
     const chart = createChart(containerRef.current, {
       layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
@@ -24,17 +28,24 @@ export default function RsiChart({ data, indicators }) {
 
     const { rsiResult, rsiOffset } = indicators
     const rsiData = rsiResult.map((v, i) => ({ time: data[i + rsiOffset].time, value: v }))
-    const obData = rsiData.map(d => ({ time: d.time, value: 70 }))
-    const osData = rsiData.map(d => ({ time: d.time, value: 30 }))
-
     rsiLine.setData(rsiData)
-    ob.setData(obData)
-    os.setData(osData)
+    ob.setData(rsiData.map(d => ({ time: d.time, value: 70 })))
+    os.setData(rsiData.map(d => ({ time: d.time, value: 30 })))
+
     chart.timeScale().fitContent()
 
-    const handleResize = () => chart.applyOptions({ width: containerRef.current.clientWidth })
+    const handleResize = () => {
+      if (chartRef.current) chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+    }
     window.addEventListener('resize', handleResize)
-    return () => { window.removeEventListener('resize', handleResize); chart.remove() }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+      }
+    }
   }, [data, indicators])
 
   return (

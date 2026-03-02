@@ -7,7 +7,11 @@ export default function MacdChart({ data, indicators }) {
 
   useEffect(() => {
     if (!indicators?.macdResult || !containerRef.current) return
-    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null }
+
+    if (chartRef.current) {
+      chartRef.current.remove()
+      chartRef.current = null
+    }
 
     const chart = createChart(containerRef.current, {
       layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
@@ -20,27 +24,31 @@ export default function MacdChart({ data, indicators }) {
 
     const macdLine = chart.addLineSeries({ color: '#38bdf8', lineWidth: 1, title: 'MACD' })
     const signalLine = chart.addLineSeries({ color: '#f97316', lineWidth: 1, title: 'Signal' })
-    const histSeries = chart.addHistogramSeries({
-      color: '#22c55e', priceFormat: { type: 'price' },
-    })
+    const histSeries = chart.addHistogramSeries({ priceFormat: { type: 'price' } })
 
     const { macdResult, macdOffset } = indicators
-    const macdData = macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.MACD }))
-    const signalData = macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.signal }))
-    const histData = macdResult.map((v, i) => ({
+    macdLine.setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.MACD })))
+    signalLine.setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.signal })))
+    histSeries.setData(macdResult.map((v, i) => ({
       time: data[i + macdOffset].time,
       value: v.histogram,
       color: v.histogram >= 0 ? '#22c55e' : '#ef4444',
-    }))
+    })))
 
-    macdLine.setData(macdData)
-    signalLine.setData(signalData)
-    histSeries.setData(histData)
     chart.timeScale().fitContent()
 
-    const handleResize = () => chart.applyOptions({ width: containerRef.current.clientWidth })
+    const handleResize = () => {
+      if (chartRef.current) chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+    }
     window.addEventListener('resize', handleResize)
-    return () => { window.removeEventListener('resize', handleResize); chart.remove() }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+      }
+    }
   }, [data, indicators])
 
   return (
