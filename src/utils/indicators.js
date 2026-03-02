@@ -1,19 +1,37 @@
 import { MACD, RSI, SMA } from 'technicalindicators'
 
+export const MA_PERIODS = [5, 10, 20, 30, 60, 120, 250]
+export const MA_COLORS = {
+  5:   '#facc15', // yellow
+  10:  '#fb923c', // orange
+  20:  '#34d399', // green
+  30:  '#38bdf8', // sky blue
+  60:  '#a78bfa', // purple
+  120: '#f472b6', // pink
+  250: '#f87171', // red
+}
+
 export function computeIndicators(data) {
   const closes = data.map(d => d.close)
+
   const macdResult = MACD.calculate({
     values: closes, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9,
     SimpleMAOscillator: false, SimpleMASignal: false,
   })
   const rsiResult = RSI.calculate({ values: closes, period: 14 })
-  const sma50 = SMA.calculate({ values: closes, period: 50 })
-  const sma200 = SMA.calculate({ values: closes, period: 200 })
+
+  const mas = {}
+  for (const period of MA_PERIODS) {
+    if (closes.length >= period) {
+      const values = SMA.calculate({ values: closes, period })
+      mas[period] = { values, offset: closes.length - values.length }
+    }
+  }
+
   const macdOffset = closes.length - macdResult.length
   const rsiOffset = closes.length - rsiResult.length
-  const sma50Offset = closes.length - sma50.length
-  const sma200Offset = closes.length - sma200.length
-  return { macdResult, rsiResult, sma50, sma200, macdOffset, rsiOffset, sma50Offset, sma200Offset }
+
+  return { macdResult, rsiResult, mas, macdOffset, rsiOffset }
 }
 
 export function computeSignals(data, indicators) {
@@ -29,11 +47,8 @@ export function computeSignals(data, indicators) {
     const rsi = rsiResult[rsiIdx]
     const macdCrossUp = macdPrev.MACD < macdPrev.signal && macdCur.MACD >= macdCur.signal
     const macdCrossDown = macdPrev.MACD > macdPrev.signal && macdCur.MACD <= macdCur.signal
-    if (macdCrossUp && rsi < 40) {
-      signals.push({ time: data[dataIdx].time, type: 'BUY', price: data[dataIdx].close })
-    } else if (macdCrossDown && rsi > 60) {
-      signals.push({ time: data[dataIdx].time, type: 'SELL', price: data[dataIdx].close })
-    }
+    if (macdCrossUp && rsi < 40) signals.push({ time: data[dataIdx].time, type: 'BUY', price: data[dataIdx].close })
+    else if (macdCrossDown && rsi > 60) signals.push({ time: data[dataIdx].time, type: 'SELL', price: data[dataIdx].close })
   }
   return signals
 }

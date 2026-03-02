@@ -5,9 +5,12 @@ import MacdChart from './components/MacdChart'
 import RsiChart from './components/RsiChart'
 import SignalSummary from './components/SignalSummary'
 import TimeRangeSelector from './components/TimeRangeSelector'
+import MAToggle from './components/MAToggle'
 import StockList from './components/StockList'
 import { fetchStockData } from './utils/fetchStockData'
 import { computeIndicators, computeSignals } from './utils/indicators'
+
+const DEFAULT_MAS = [20, 60, 250]
 
 export default function App() {
   const [ticker, setTicker] = useState('')
@@ -17,6 +20,7 @@ export default function App() {
   const [signals, setSignals] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [enabledMAs, setEnabledMAs] = useState(DEFAULT_MAS)
 
   const loadData = async (symbol, selectedRange) => {
     setLoading(true)
@@ -56,6 +60,8 @@ export default function App() {
     setError(null)
   }
 
+  const isChartView = data || loading
+
   return (
     <div className="min-h-screen bg-[#0f1117] text-white">
       <header className="border-b border-gray-800 px-6 py-4 flex items-center gap-3">
@@ -66,7 +72,7 @@ export default function App() {
         <span className="text-gray-500 text-sm ml-1 hidden sm:inline">Swing Trading Technical Analysis</span>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-6xl mx-auto px-6 py-6 space-y-5">
         <SearchBar onSearch={handleSearch} loading={loading} />
 
         {error && (
@@ -75,23 +81,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Chart view */}
-        {(data || loading) && (
+        {/* ── Chart view ── */}
+        {isChartView && (
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button onClick={handleBack} className="text-gray-400 hover:text-white text-sm transition-colors">
                   ← Watchlist
                 </button>
                 <h2 className="text-lg font-semibold text-white">{ticker}</h2>
-                {!loading && (
-                  <div className="flex gap-4 text-xs text-gray-400">
-                    <span><span className="inline-block w-3 h-0.5 bg-yellow-400 mr-1 align-middle"></span>SMA 50</span>
-                    <span><span className="inline-block w-3 h-0.5 bg-purple-500 mr-1 align-middle"></span>SMA 200</span>
-                    <span><span className="text-green-400 mr-1">▲</span>BUY</span>
-                    <span><span className="text-red-400 mr-1">▼</span>SELL</span>
-                  </div>
-                )}
               </div>
               <TimeRangeSelector selected={range} onChange={handleRangeChange} />
             </div>
@@ -104,8 +102,18 @@ export default function App() {
             ) : (
               <>
                 <SignalSummary signals={signals} />
+
+                {/* MA toggles + signal legend */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
+                  <div className="flex gap-4 text-xs text-gray-400">
+                    <span><span className="text-green-400 mr-1">▲</span>BUY signal</span>
+                    <span><span className="text-red-400 mr-1">▼</span>SELL signal</span>
+                  </div>
+                </div>
+
                 <div className="bg-gray-900/50 rounded-xl p-4 space-y-4 border border-gray-800">
-                  <PriceChart data={data} indicators={indicators} signals={signals} />
+                  <PriceChart data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} />
                   <MacdChart data={data} indicators={indicators} />
                   <RsiChart data={data} indicators={indicators} />
                 </div>
@@ -114,8 +122,8 @@ export default function App() {
           </>
         )}
 
-        {/* Watchlist home */}
-        {!data && !loading && !error && (
+        {/* ── Watchlist home ── */}
+        {!isChartView && !error && (
           <StockList onSelectTicker={handleSearch} />
         )}
       </main>

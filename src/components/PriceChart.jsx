@@ -1,18 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { createChart, CrosshairMode } from 'lightweight-charts'
+import { MA_COLORS } from '../utils/indicators'
 
-export default function PriceChart({ data, indicators, signals }) {
+export default function PriceChart({ data, indicators, signals, enabledMAs }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
 
   useEffect(() => {
     if (!data || data.length === 0 || !containerRef.current) return
 
-    // Destroy any existing chart
-    if (chartRef.current) {
-      chartRef.current.remove()
-      chartRef.current = null
-    }
+    if (chartRef.current) { chartRef.current.remove(); chartRef.current = null }
 
     const chart = createChart(containerRef.current, {
       layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
@@ -20,7 +17,7 @@ export default function PriceChart({ data, indicators, signals }) {
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: '#334155' },
       timeScale: { borderColor: '#334155', timeVisible: true },
-      height: 380,
+      height: 420,
     })
     chartRef.current = chart
 
@@ -33,21 +30,24 @@ export default function PriceChart({ data, indicators, signals }) {
       time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
     })))
 
-    if (indicators?.sma50) {
-      const sma50Series = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, title: 'SMA50' })
-      sma50Series.setData(
-        indicators.sma50.map((v, i) => ({ time: data[i + indicators.sma50Offset].time, value: v }))
-      )
+    // MA lines
+    if (indicators?.mas) {
+      for (const period of (enabledMAs || [])) {
+        const ma = indicators.mas[period]
+        if (!ma) continue
+        const maSeries = chart.addLineSeries({
+          color: MA_COLORS[period],
+          lineWidth: 1,
+          title: `MA${period}`,
+          priceLineVisible: false,
+          lastValueVisible: true,
+        })
+        maSeries.setData(ma.values.map((v, i) => ({ time: data[i + ma.offset].time, value: v })))
+      }
     }
 
-    if (indicators?.sma200) {
-      const sma200Series = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA200' })
-      sma200Series.setData(
-        indicators.sma200.map((v, i) => ({ time: data[i + indicators.sma200Offset].time, value: v }))
-      )
-    }
-
-    if (signals && signals.length > 0) {
+    // Buy/Sell markers
+    if (signals?.length > 0) {
       candleSeries.setMarkers(signals.map(s => ({
         time: s.time,
         position: s.type === 'BUY' ? 'belowBar' : 'aboveBar',
@@ -63,15 +63,11 @@ export default function PriceChart({ data, indicators, signals }) {
       if (chartRef.current) chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
     }
     window.addEventListener('resize', handleResize)
-
     return () => {
       window.removeEventListener('resize', handleResize)
-      if (chartRef.current) {
-        chartRef.current.remove()
-        chartRef.current = null
-      }
+      if (chartRef.current) { chartRef.current.remove(); chartRef.current = null }
     }
-  }, [data, indicators, signals])
+  }, [data, indicators, signals, enabledMAs])
 
   return <div ref={containerRef} className="w-full rounded-lg overflow-hidden" />
 }
