@@ -4,17 +4,15 @@ import { MA_COLORS } from '../utils/indicators'
 
 function makeChart(container, height, hideTimeScale = false) {
   return createChart(container, {
+    width: container.clientWidth,
+    height,
     layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
     crosshair: { mode: CrosshairMode.Normal },
     rightPriceScale: { borderColor: '#334155', autoScale: true },
     timeScale: { borderColor: '#334155', timeVisible: true, visible: !hideTimeScale },
-    height,
+    handleScale: { axisPressedMouseMove: { time: true, price: false } },
   })
-}
-
-function autoScaleChart(chart) {
-  chart.priceScale('right').applyOptions({ autoScale: true })
 }
 
 export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
@@ -26,7 +24,8 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
   useEffect(() => {
     if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
 
-    charts.current.forEach(c => c.remove())
+    // Destroy previous
+    charts.current.forEach(c => { try { c.remove() } catch {} })
     charts.current = []
 
     // ── Price chart ──
@@ -85,36 +84,36 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs }) {
       rsi.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: 2 }).setData(rsiData.map(d => ({ time: d.time, value: 30 })))
     }
 
-    charts.current = [price, macd, rsi]
+    const allCharts = [price, macd, rsi]
+    charts.current = allCharts
+
     price.timeScale().fitContent()
 
-    // ── Sync time scales + auto-scale y-axis on every range change ──
+    // ── Sync time scales + re-trigger autoScale on zoom/pan ──
     let isSyncing = false
-    const allCharts = [price, macd, rsi]
-
     allCharts.forEach((source, si) => {
       source.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (isSyncing || !range) return
         isSyncing = true
         allCharts.forEach((target, ti) => {
           if (ti !== si) target.timeScale().setVisibleLogicalRange(range)
+          // Re-apply autoScale so y-axis refits to visible bars
+          target.priceScale('right').applyOptions({ autoScale: true })
         })
-        // Re-trigger autoScale on all charts so y-axis fills the view
-        allCharts.forEach(c => autoScaleChart(c))
         isSyncing = false
       })
     })
 
-    // ── Resize ──
-    const handleResize = () => {
+    // ── Resize observer (more reliable than window resize) ──
+    const ro = new ResizeObserver(() => {
       const w = priceRef.current?.clientWidth
-      if (w) charts.current.forEach(c => c.applyOptions({ width: w }))
-    }
-    window.addEventListener('resize', handleResize)
+      if (w) allCharts.forEach(c => c.applyOptions({ width: w }))
+    })
+    ro.observe(priceRef.current)
 
     return () => {
-      window.removeEventListener('resize', handleResize)
-      charts.current.forEach(c => c.remove())
+      ro.disconnect()
+      allCharts.forEach(c => { try { c.remove() } catch {} })
       charts.current = []
     }
   }, [data, indicators, signals, enabledMAs])
