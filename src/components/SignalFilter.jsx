@@ -1,4 +1,4 @@
-const SOURCES = ['MACD', 'RSI', 'Golden Cross', 'Death Cross', 'ADX', 'BB']
+const SOURCES = ['MACD', 'RSI', 'Golden Cross', 'Death Cross', 'ADX', 'BB', 'OBV']
 
 const SOURCE_COLORS = {
   'MACD':         'border-sky-500 text-sky-400 bg-sky-900/20',
@@ -7,6 +7,7 @@ const SOURCE_COLORS = {
   'Death Cross':  'border-orange-500 text-orange-400 bg-orange-900/20',
   'ADX':          'border-pink-500 text-pink-400 bg-pink-900/20',
   'BB':           'border-cyan-500 text-cyan-400 bg-cyan-900/20',
+  'OBV':          'border-emerald-500 text-emerald-400 bg-emerald-900/20',
 }
 
 export default function SignalFilter({ enabled, onChange }) {

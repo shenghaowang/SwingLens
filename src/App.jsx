@@ -11,7 +11,7 @@ import { computeIndicators, computeSignals, computeCurrentSignal } from './utils
 import { filterSignals } from './utils/filterSignals'
 
 const DEFAULT_MAS     = [30, 60, 120]
-const ALL_SOURCES     = ['MACD', 'RSI', 'Golden Cross', 'Death Cross', 'ADX', 'BB']
+const ALL_SOURCES     = ['MACD', 'RSI', 'Golden Cross', 'Death Cross', 'ADX', 'BB', 'OBV']
 
 export default function App() {
   const [ticker, setTicker] = useState('')
