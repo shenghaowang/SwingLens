@@ -7,19 +7,12 @@ const RANGE_SECONDS = {
   '5Y':  5 * 365 * 86400,
 }
 
-// Enforce minimum bar spacing between signals of the same type,
-// using the avg bar duration estimated from data timestamps.
 function applyCooldown(signals, data, cooldownBars = 10) {
   if (!signals.length || !data?.length) return signals
-
-  // Estimate average bar duration (seconds per bar)
-  const totalDuration = data[data.length - 1].time - data[0].time
-  const secPerBar = totalDuration / (data.length - 1)
+  const secPerBar = (data[data.length - 1].time - data[0].time) / (data.length - 1)
   const cooldownSec = cooldownBars * secPerBar
-
   const result = []
   const lastTime = { BUY: -Infinity, SELL: -Infinity }
-
   for (const s of signals) {
     if (s.time - lastTime[s.type] >= cooldownSec) {
       result.push(s)
@@ -35,8 +28,27 @@ export function filterSignals(signals, { enabledSources, range, maxCount = 5, da
   const latestTime  = data?.[data.length - 1]?.time ?? signals[signals.length - 1]?.time ?? 0
   const windowStart = latestTime - (RANGE_SECONDS[range] ?? RANGE_SECONDS['1Y'])
 
-  const step1 = signals.filter(s => enabledSources.includes(s.source))  // source filter
-  const step2 = applyCooldown(step1, data, cooldownBars)                 // cooldown filter
-  const step3 = step2.filter(s => s.time >= windowStart)                 // range window filter
-  return step3.slice(-maxCount)                                           // last N only
+  // Standard pipeline
+  const step1 = signals.filter(s => enabledSources.includes(s.source))
+  const step2 = applyCooldown(step1, data, cooldownBars)
+  const step3 = step2.filter(s => s.time >= windowStart)
+  let result  = step3.slice(-maxCount)
+
+  // ── Priority: always include signals on the most recent bar ──
+  // Find any signals from the latest data point that passed source + range filters
+  // but may have been dropped by cooldown or maxCount
+  const latestBarSignals = step1
+    .filter(s => s.time === latestTime && s.time >= windowStart)
+
+  for (const latest of latestBarSignals) {
+    const alreadyIncluded = result.some(s => s.time === latest.time && s.source === latest.source)
+    if (!alreadyIncluded) {
+      // Insert and trim oldest to maintain maxCount
+      result = [...result, latest]
+        .sort((a, b) => a.time - b.time)
+        .slice(-maxCount)
+    }
+  }
+
+  return result
 }
