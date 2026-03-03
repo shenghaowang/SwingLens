@@ -59,7 +59,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     if (indicators?.mas) {
       for (const period of (enabledMAs||[])) {
         const ma = indicators.mas[period]; if (!ma) continue
-        price.addLineSeries({ color:MA_COLORS[period], lineWidth:1, title:`MA${period}`, priceLineVisible:false })
+        price.addLineSeries({ color:MA_COLORS[period], lineWidth:1, title:`MA${period}`, priceLineVisible:false, lastValueVisible:false })
           .setData(ma.values.map((v,i) => ({ time:data[i+ma.offset].time, value:v })))
       }
     }
@@ -114,8 +114,8 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       const { rsiResult, rsiOffset } = indicators
       const rd = rsiResult.map((v,i) => ({ time:data[i+rsiOffset].time, value:v }))
       rsi.addLineSeries({ color:'#c084fc', lineWidth:1, title:'RSI' }).setData(rd)
-      rsi.addLineSeries({ color:'#ef444466', lineWidth:1, lineStyle:LineStyle.Dashed }).setData(rd.map(d=>({ time:d.time, value:70 })))
-      rsi.addLineSeries({ color:'#22c55e66', lineWidth:1, lineStyle:LineStyle.Dashed }).setData(rd.map(d=>({ time:d.time, value:30 })))
+      rsi.addLineSeries({ color:'#ef444466', lineWidth:1, lineStyle:LineStyle.Dashed, priceLineVisible:false, lastValueVisible:false }).setData(rd.map(d=>({ time:d.time, value:70 })))
+      rsi.addLineSeries({ color:'#22c55e66', lineWidth:1, lineStyle:LineStyle.Dashed, priceLineVisible:false, lastValueVisible:false }).setData(rd.map(d=>({ time:d.time, value:30 })))
     }
     allCharts.push(rsi)
 
@@ -129,9 +129,9 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
         .setData(adxResult.map((v,i) => ({ time:data[i+adxOffset].time, value:v.pdi })))
       adx.addLineSeries({ color:'#ef4444', lineWidth:1, title:'-DI' })
         .setData(adxResult.map((v,i) => ({ time:data[i+adxOffset].time, value:v.mdi })))
-      adx.addLineSeries({ color:'#ffffff33', lineWidth:1, lineStyle:LineStyle.Dashed })
+      adx.addLineSeries({ color:'#ffffff33', lineWidth:1, lineStyle:LineStyle.Dashed, priceLineVisible:false, lastValueVisible:false })
         .setData(adxResult.map((v,i) => ({ time:data[i+adxOffset].time, value:25 })))
-      adx.addLineSeries({ color:'#ffffff1a', lineWidth:1, lineStyle:LineStyle.Dashed })
+      adx.addLineSeries({ color:'#ffffff1a', lineWidth:1, lineStyle:LineStyle.Dashed, priceLineVisible:false, lastValueVisible:false })
         .setData(adxResult.map((v,i) => ({ time:data[i+adxOffset].time, value:20 })))
     }
     allCharts.push(adx)
