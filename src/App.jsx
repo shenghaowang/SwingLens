@@ -16,7 +16,7 @@ export default function App() {
   const [data, setData] = useState(null)
   const [indicators, setIndicators] = useState(null)
   const [signals, setSignals] = useState(null)
-  const [currentSignal, setCurrentSignal] = useState('NEUTRAL')
+  const [currentSignal, setCurrentSignal] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [enabledMAs, setEnabledMAs] = useState(DEFAULT_MAS)
@@ -27,12 +27,12 @@ export default function App() {
     setData(null)
     setIndicators(null)
     setSignals(null)
-    setCurrentSignal('NEUTRAL')
+    setCurrentSignal(null)
     try {
       const raw = await fetchStockData(symbol)
       const ind = computeIndicators(raw)
       const sig = computeSignals(raw, ind)
-      const cur = computeCurrentSignal(raw, ind)
+      const cur = computeCurrentSignal(raw, ind)  // { overall, breakdown }
       setData(raw)
       setIndicators(ind)
       setSignals(sig)
@@ -47,10 +47,11 @@ export default function App() {
   const handleSearch = (symbol) => { setTicker(symbol); loadData(symbol) }
   const handleBack = () => {
     setTicker(''); setData(null); setIndicators(null)
-    setSignals(null); setCurrentSignal('NEUTRAL'); setError(null)
+    setSignals(null); setCurrentSignal(null); setError(null)
   }
 
   const isChartView = data || loading
+  const latest = data?.[data.length - 1]
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white">
@@ -88,12 +89,18 @@ export default function App() {
               </div>
             ) : (
               <>
-                <SignalSummary signal={currentSignal} ticker={ticker} price={data?.[data.length - 1]?.close} date={new Date(data?.[data.length - 1]?.time * 1000).toLocaleDateString('en-CA')} />
+                <SignalSummary
+                  overall={currentSignal?.overall}
+                  breakdown={currentSignal?.breakdown}
+                  ticker={ticker}
+                  price={latest?.close}
+                  date={latest ? new Date(latest.time * 1000).toLocaleDateString('en-CA') : null}
+                />
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
                   <div className="flex gap-4 text-xs text-gray-400">
-                    <span><span className="text-green-400 mr-1">▲</span>BUY signal</span>
-                    <span><span className="text-red-400 mr-1">▼</span>SELL signal</span>
+                    <span><span className="text-green-400 mr-1">▲</span>BUY</span>
+                    <span><span className="text-red-400 mr-1">▼</span>SELL</span>
                   </div>
                 </div>
                 <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
