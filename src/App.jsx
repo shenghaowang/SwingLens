@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import SearchBar from './components/SearchBar'
 import ChartPanel from './components/ChartPanel'
 import SignalSummary from './components/SignalSummary'
 import TimeRangeSelector from './components/TimeRangeSelector'
 import MAToggle from './components/MAToggle'
+import SignalFilter from './components/SignalFilter'
 import StockList from './components/StockList'
 import { fetchStockData } from './utils/fetchStockData'
 import { computeIndicators, computeSignals, computeCurrentSignal } from './utils/indicators'
+import { filterSignals } from './utils/filterSignals'
 
-const DEFAULT_MAS = [30, 60, 120]
+const DEFAULT_MAS     = [30, 60, 120]
+const ALL_SOURCES     = ['MACD', 'RSI', 'Golden Cross', 'Death Cross', 'ADX']
 
 export default function App() {
   const [ticker, setTicker] = useState('')
@@ -20,23 +23,18 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [enabledMAs, setEnabledMAs] = useState(DEFAULT_MAS)
+  const [enabledSources, setEnabledSources] = useState(ALL_SOURCES)
 
   const loadData = async (symbol) => {
     setLoading(true)
     setError(null)
-    setData(null)
-    setIndicators(null)
-    setSignals(null)
-    setCurrentSignal(null)
+    setData(null); setIndicators(null); setSignals(null); setCurrentSignal(null)
     try {
       const raw = await fetchStockData(symbol)
       const ind = computeIndicators(raw)
       const sig = computeSignals(raw, ind)
-      const cur = computeCurrentSignal(raw, ind)  // { overall, breakdown }
-      setData(raw)
-      setIndicators(ind)
-      setSignals(sig)
-      setCurrentSignal(cur)
+      const cur = computeCurrentSignal(raw, ind)
+      setData(raw); setIndicators(ind); setSignals(sig); setCurrentSignal(cur)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -49,6 +47,12 @@ export default function App() {
     setTicker(''); setData(null); setIndicators(null)
     setSignals(null); setCurrentSignal(null); setError(null)
   }
+
+  // Apply filters: source + range window + last 5
+  const filteredSignals = useMemo(() =>
+    filterSignals(signals, { enabledSources, range, maxCount: 5 }),
+    [signals, enabledSources, range]
+  )
 
   const isChartView = data || loading
   const latest = data?.[data.length - 1]
@@ -96,15 +100,28 @@ export default function App() {
                   price={latest?.close}
                   date={latest ? new Date(latest.time * 1000).toLocaleDateString('en-CA') : null}
                 />
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
-                  <div className="flex gap-4 text-xs text-gray-400">
-                    <span><span className="text-green-400 mr-1">▲</span>BUY</span>
-                    <span><span className="text-red-400 mr-1">▼</span>SELL</span>
+
+                {/* Controls row */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <MAToggle enabled={enabledMAs} onChange={setEnabledMAs} />
+                    <div className="flex gap-4 text-xs text-gray-400">
+                      <span><span className="text-green-400 mr-1">▲</span>BUY</span>
+                      <span><span className="text-red-400 mr-1">▼</span>SELL</span>
+                      <span className="text-gray-600">· last 5 per window</span>
+                    </div>
                   </div>
+                  <SignalFilter enabled={enabledSources} onChange={setEnabledSources} />
                 </div>
+
                 <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                  <ChartPanel data={data} indicators={indicators} signals={signals} enabledMAs={enabledMAs} range={range} />
+                  <ChartPanel
+                    data={data}
+                    indicators={indicators}
+                    signals={filteredSignals}
+                    enabledMAs={enabledMAs}
+                    range={range}
+                  />
                 </div>
               </>
             )}
