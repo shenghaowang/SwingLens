@@ -50,7 +50,7 @@ export default function App() {
 
   // Apply filters: source + range window + last 5
   const filteredSignals = useMemo(() =>
-    filterSignals(signals, { enabledSources, range, maxCount: 5 }),
+    filterSignals(signals, { enabledSources, range, maxCount: 5, data, cooldownBars: 10 }),
     [signals, enabledSources, range]
   )
 
