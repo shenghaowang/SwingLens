@@ -1,4 +1,4 @@
-import { MACD, RSI, SMA, ADX } from 'technicalindicators'
+import { MACD, RSI, SMA, ADX, BollingerBands } from 'technicalindicators'
 
 export const MA_PERIODS = [5, 10, 20, 30, 60, 120, 250]
 export const MA_COLORS = {
@@ -21,8 +21,8 @@ export function computeIndicators(data) {
     SimpleMAOscillator: false, SimpleMASignal: false,
   })
   const rsiResult = RSI.calculate({ values: closes, period: 14 })
-
   const adxResult = ADX.calculate({ close: closes, high: highs, low: lows, period: 14 })
+  const bbResult  = BollingerBands.calculate({ values: closes, period: 20, stdDev: 2 })
 
   const mas = {}
   for (const period of MA_PERIODS) {
@@ -35,107 +35,121 @@ export function computeIndicators(data) {
   const ma50raw  = closes.length >= 50  ? SMA.calculate({ values: closes, period: 50  }) : []
   const ma200raw = closes.length >= 200 ? SMA.calculate({ values: closes, period: 200 }) : []
 
-  const macdOffset = closes.length - macdResult.length
-  const rsiOffset  = closes.length - rsiResult.length
-  const adxOffset  = closes.length - adxResult.length
-
-  return { macdResult, rsiResult, adxResult, mas, ma50raw, ma200raw, macdOffset, rsiOffset, adxOffset }
+  return {
+    macdResult, rsiResult, adxResult, bbResult, mas, ma50raw, ma200raw,
+    macdOffset: closes.length - macdResult.length,
+    rsiOffset:  closes.length - rsiResult.length,
+    adxOffset:  closes.length - adxResult.length,
+    bbOffset:   closes.length - bbResult.length,
+  }
 }
 
-// ── Historical signal markers ──
 export function computeSignals(data, indicators) {
-  const { macdResult, rsiResult, adxResult, ma50raw, ma200raw, macdOffset, rsiOffset, adxOffset } = indicators
+  const { macdResult, rsiResult, adxResult, bbResult,
+          macdOffset, rsiOffset, adxOffset, bbOffset,
+          ma50raw, ma200raw } = indicators
   const signals = []
 
   // 1. MACD crossover
   for (let i = 1; i < macdResult.length; i++) {
-    const dataIdx = i + macdOffset
-    if (dataIdx >= data.length) break
-    const prev = macdResult[i - 1]
-    const cur  = macdResult[i]
-    if (prev.MACD < prev.signal && cur.MACD >= cur.signal)
-      signals.push({ time: data[dataIdx].time, type: 'BUY',  source: 'MACD', price: data[dataIdx].close })
-    else if (prev.MACD > prev.signal && cur.MACD <= cur.signal)
-      signals.push({ time: data[dataIdx].time, type: 'SELL', source: 'MACD', price: data[dataIdx].close })
+    const di = i + macdOffset
+    if (di >= data.length) break
+    const p = macdResult[i - 1], c = macdResult[i]
+    if (p.MACD < p.signal && c.MACD >= c.signal)
+      signals.push({ time: data[di].time, type: 'BUY',  source: 'MACD', price: data[di].close })
+    else if (p.MACD > p.signal && c.MACD <= c.signal)
+      signals.push({ time: data[di].time, type: 'SELL', source: 'MACD', price: data[di].close })
   }
 
   // 2. RSI
   for (let i = 1; i < rsiResult.length; i++) {
-    const dataIdx = i + rsiOffset
-    if (dataIdx >= data.length) break
+    const di = i + rsiOffset
+    if (di >= data.length) break
     if (rsiResult[i - 1] >= 30 && rsiResult[i] < 30)
-      signals.push({ time: data[dataIdx].time, type: 'BUY',  source: 'RSI', price: data[dataIdx].close })
+      signals.push({ time: data[di].time, type: 'BUY',  source: 'RSI', price: data[di].close })
     else if (rsiResult[i - 1] <= 70 && rsiResult[i] > 70)
-      signals.push({ time: data[dataIdx].time, type: 'SELL', source: 'RSI', price: data[dataIdx].close })
+      signals.push({ time: data[di].time, type: 'SELL', source: 'RSI', price: data[di].close })
   }
 
-  // 3. Golden / Death Cross (MA50 vs MA200)
+  // 3. Golden / Death Cross
   if (ma50raw.length && ma200raw.length) {
-    const crossOffset  = data.length - ma200raw.length
-    const ma50Aligned  = ma50raw.slice(ma50raw.length - ma200raw.length)
+    const crossOffset = data.length - ma200raw.length
+    const ma50a = ma50raw.slice(ma50raw.length - ma200raw.length)
     for (let i = 1; i < ma200raw.length; i++) {
-      const dataIdx  = i + crossOffset
-      if (dataIdx >= data.length) break
-      const prevAbove = ma50Aligned[i - 1] > ma200raw[i - 1]
-      const curAbove  = ma50Aligned[i]     > ma200raw[i]
+      const di = i + crossOffset
+      if (di >= data.length) break
+      const prevAbove = ma50a[i - 1] > ma200raw[i - 1]
+      const curAbove  = ma50a[i]     > ma200raw[i]
       if (!prevAbove && curAbove)
-        signals.push({ time: data[dataIdx].time, type: 'BUY',  source: 'Golden Cross', price: data[dataIdx].close })
+        signals.push({ time: data[di].time, type: 'BUY',  source: 'Golden Cross', price: data[di].close })
       else if (prevAbove && !curAbove)
-        signals.push({ time: data[dataIdx].time, type: 'SELL', source: 'Death Cross',  price: data[dataIdx].close })
+        signals.push({ time: data[di].time, type: 'SELL', source: 'Death Cross',  price: data[di].close })
     }
   }
 
-  // 4. ADX crossover: +DI/-DI cross while ADX > 25
+  // 4. ADX: +DI/-DI cross with ADX > 25
   for (let i = 1; i < adxResult.length; i++) {
-    const dataIdx = i + adxOffset
-    if (dataIdx >= data.length) break
-    const prev = adxResult[i - 1]
-    const cur  = adxResult[i]
-    if (cur.adx < 25) continue
-    const prevUp = prev.pdi > prev.mdi
-    const curUp  = cur.pdi  > cur.mdi
-    if (!prevUp && curUp)
-      signals.push({ time: data[dataIdx].time, type: 'BUY',  source: 'ADX', price: data[dataIdx].close })
-    else if (prevUp && !curUp)
-      signals.push({ time: data[dataIdx].time, type: 'SELL', source: 'ADX', price: data[dataIdx].close })
+    const di = i + adxOffset
+    if (di >= data.length) break
+    const p = adxResult[i - 1], c = adxResult[i]
+    if (c.adx < 25) continue
+    if (p.pdi <= p.mdi && c.pdi > c.mdi)
+      signals.push({ time: data[di].time, type: 'BUY',  source: 'ADX', price: data[di].close })
+    else if (p.pdi >= p.mdi && c.pdi < c.mdi)
+      signals.push({ time: data[di].time, type: 'SELL', source: 'ADX', price: data[di].close })
+  }
+
+  // 5. Bollinger Bands: price pierces lower (BUY) or upper (SELL)
+  for (let i = 1; i < bbResult.length; i++) {
+    const di = i + bbOffset
+    if (di >= data.length) break
+    const bb   = bbResult[i]
+    const bbp  = bbResult[i - 1]
+    const bar  = data[di]
+    const barp = data[di - 1]
+    // Enter lower band: low crosses below lower band
+    if (barp.low > bbp.lower && bar.low <= bb.lower)
+      signals.push({ time: bar.time, type: 'BUY',  source: 'BB', price: bar.close })
+    // Enter upper band: high crosses above upper band
+    else if (barp.high < bbp.upper && bar.high >= bb.upper)
+      signals.push({ time: bar.time, type: 'SELL', source: 'BB', price: bar.close })
   }
 
   return signals.sort((a, b) => a.time - b.time)
 }
 
-// ── Current signal state per indicator ──
 export function computeCurrentSignal(data, indicators) {
-  const { macdResult, rsiResult, adxResult, ma50raw, ma200raw } = indicators
+  const { macdResult, rsiResult, adxResult, bbResult, ma50raw, ma200raw } = indicators
   const breakdown = {}
 
-  // MACD
-  if (macdResult.length >= 1) {
-    const cur = macdResult[macdResult.length - 1]
-    breakdown.MACD = cur.MACD > cur.signal ? 'BUY' : cur.MACD < cur.signal ? 'SELL' : 'NEUTRAL'
+  if (macdResult.length) {
+    const c = macdResult[macdResult.length - 1]
+    breakdown.MACD = c.MACD > c.signal ? 'BUY' : c.MACD < c.signal ? 'SELL' : 'NEUTRAL'
   }
 
-  // RSI
-  if (rsiResult.length >= 1) {
-    const rsi = rsiResult[rsiResult.length - 1]
-    breakdown.RSI = rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'NEUTRAL'
+  if (rsiResult.length) {
+    const r = rsiResult[rsiResult.length - 1]
+    breakdown.RSI = r < 30 ? 'BUY' : r > 70 ? 'SELL' : 'NEUTRAL'
   }
 
-  // Golden / Death Cross
   if (ma50raw.length && ma200raw.length) {
     const ma50  = ma50raw[ma50raw.length - 1]
     const ma200 = ma200raw[ma200raw.length - 1]
     breakdown['MA Cross'] = ma50 > ma200 ? 'BUY' : ma50 < ma200 ? 'SELL' : 'NEUTRAL'
   }
 
-  // ADX
-  if (adxResult.length >= 1) {
+  if (adxResult.length) {
     const { adx, pdi, mdi } = adxResult[adxResult.length - 1]
-    if (adx > 25)      breakdown.ADX = pdi > mdi ? 'BUY' : 'SELL'
-    else if (adx < 20) breakdown.ADX = 'NEUTRAL'   // ranging
-    else               breakdown.ADX = 'NEUTRAL'   // weak trend
+    breakdown.ADX = adx > 25 ? (pdi > mdi ? 'BUY' : 'SELL') : 'NEUTRAL'
   }
 
-  // Majority vote
+  if (bbResult.length && data.length) {
+    const bb  = bbResult[bbResult.length - 1]
+    const bar = data[data.length - 1]
+    breakdown.BB = bar.close <= bb.lower ? 'BUY'
+      : bar.close >= bb.upper ? 'SELL' : 'NEUTRAL'
+  }
+
   const counts = { BUY: 0, SELL: 0, NEUTRAL: 0 }
   Object.values(breakdown).forEach(s => counts[s]++)
   const overall = counts.BUY > counts.SELL ? 'BUY'

@@ -1,23 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { createChart, CrosshairMode } from 'lightweight-charts'
+import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts'
 import { MA_COLORS } from '../utils/indicators'
 import VolumeProfile from './VolumeProfile'
 
 const PRICE_CHART_HEIGHT = 400
 
 const RANGE_SECONDS = {
-  '1M':  30  * 86400,
-  '3M':  90  * 86400,
-  '6M':  180 * 86400,
-  '1Y':  365 * 86400,
-  '3Y':  3 * 365 * 86400,
-  '5Y':  5 * 365 * 86400,
+  '1M':  30  * 86400,  '3M':  90  * 86400,  '6M':  180 * 86400,
+  '1Y':  365 * 86400,  '3Y':  3 * 365 * 86400, '5Y': 5 * 365 * 86400,
 }
 
 function makeChart(container, height, hideTimeScale = false) {
   return createChart(container, {
-    width: container.clientWidth,
-    height,
+    width: container.clientWidth, height,
     layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
     crosshair: { mode: CrosshairMode.Normal },
@@ -33,11 +28,11 @@ function setVisibleRange(charts, data, range) {
 }
 
 export default function ChartPanel({ data, indicators, signals, enabledMAs, range }) {
-  const priceRef = useRef(null)
-  const volRef   = useRef(null)
-  const macdRef  = useRef(null)
-  const rsiRef   = useRef(null)
-  const adxRef   = useRef(null)
+  const priceRef  = useRef(null)
+  const volRef    = useRef(null)
+  const macdRef   = useRef(null)
+  const rsiRef    = useRef(null)
+  const adxRef    = useRef(null)
   const chartsRef = useRef([])
   const [visibleData, setVisibleData] = useState(null)
 
@@ -62,6 +57,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     })
     candle.setData(data.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })))
 
+    // MA overlays
     if (indicators?.mas) {
       for (const period of (enabledMAs || [])) {
         const ma = indicators.mas[period]
@@ -71,6 +67,20 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       }
     }
 
+    // Bollinger Bands overlay
+    if (indicators?.bbResult?.length) {
+      const { bbResult, bbOffset } = indicators
+      const bbData = bbResult.map((v, i) => ({ time: data[i + bbOffset].time, upper: v.upper, middle: v.middle, lower: v.lower }))
+
+      price.addLineSeries({ color: '#67e8f966', lineWidth: 1, lineStyle: LineStyle.Dashed, title: 'BB Upper', priceLineVisible: false, lastValueVisible: false })
+        .setData(bbData.map(d => ({ time: d.time, value: d.upper })))
+      price.addLineSeries({ color: '#67e8f9aa', lineWidth: 1, lineStyle: LineStyle.Solid, title: 'BB Mid', priceLineVisible: false, lastValueVisible: false })
+        .setData(bbData.map(d => ({ time: d.time, value: d.middle })))
+      price.addLineSeries({ color: '#67e8f966', lineWidth: 1, lineStyle: LineStyle.Dashed, title: 'BB Lower', priceLineVisible: false, lastValueVisible: false })
+        .setData(bbData.map(d => ({ time: d.time, value: d.lower })))
+    }
+
+    // Signal markers
     if (signals?.length) {
       candle.setMarkers(signals.map(s => ({
         time: s.time,
@@ -88,10 +98,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       const vol = makeChart(volRef.current, 100, true)
       const volSeries = vol.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume' })
       vol.priceScale('volume').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } })
-      volSeries.setData(data.map(d => ({
-        time: d.time, value: d.volume,
-        color: d.close >= d.open ? '#22c55e' : '#ef4444',
-      })))
+      volSeries.setData(data.map(d => ({ time: d.time, value: d.volume, color: d.close >= d.open ? '#22c55e' : '#ef4444' })))
       allCharts.push(vol)
     }
 
@@ -103,10 +110,8 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
         .setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.MACD })))
       macd.addLineSeries({ color: '#f97316', lineWidth: 1, title: 'Signal' })
         .setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.signal })))
-      macd.addHistogramSeries().setData(macdResult.map((v, i) => ({
-        time: data[i + macdOffset].time, value: v.histogram,
-        color: v.histogram >= 0 ? '#22c55e' : '#ef4444',
-      })))
+      macd.addHistogramSeries()
+        .setData(macdResult.map((v, i) => ({ time: data[i + macdOffset].time, value: v.histogram, color: v.histogram >= 0 ? '#22c55e' : '#ef4444' })))
     }
     allCharts.push(macd)
 
@@ -114,10 +119,10 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     const rsi = makeChart(rsiRef.current, 120, true)
     if (indicators?.rsiResult) {
       const { rsiResult, rsiOffset } = indicators
-      const rsiData = rsiResult.map((v, i) => ({ time: data[i + rsiOffset].time, value: v }))
-      rsi.addLineSeries({ color: '#c084fc', lineWidth: 1, title: 'RSI' }).setData(rsiData)
-      rsi.addLineSeries({ color: '#ef444466', lineWidth: 1, lineStyle: 2 }).setData(rsiData.map(d => ({ time: d.time, value: 70 })))
-      rsi.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: 2 }).setData(rsiData.map(d => ({ time: d.time, value: 30 })))
+      const rd = rsiResult.map((v, i) => ({ time: data[i + rsiOffset].time, value: v }))
+      rsi.addLineSeries({ color: '#c084fc', lineWidth: 1, title: 'RSI' }).setData(rd)
+      rsi.addLineSeries({ color: '#ef444466', lineWidth: 1, lineStyle: LineStyle.Dashed }).setData(rd.map(d => ({ time: d.time, value: 70 })))
+      rsi.addLineSeries({ color: '#22c55e66', lineWidth: 1, lineStyle: LineStyle.Dashed }).setData(rd.map(d => ({ time: d.time, value: 30 })))
     }
     allCharts.push(rsi)
 
@@ -125,19 +130,15 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     const adx = makeChart(adxRef.current, 120, false)
     if (indicators?.adxResult) {
       const { adxResult, adxOffset } = indicators
-      // ADX line
       adx.addLineSeries({ color: '#fbbf24', lineWidth: 2, title: 'ADX' })
         .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.adx })))
-      // +DI
       adx.addLineSeries({ color: '#22c55e', lineWidth: 1, title: '+DI' })
         .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.pdi })))
-      // -DI
       adx.addLineSeries({ color: '#ef4444', lineWidth: 1, title: '-DI' })
         .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.mdi })))
-      // Threshold lines
-      adx.addLineSeries({ color: '#ffffff33', lineWidth: 1, lineStyle: 2 })
+      adx.addLineSeries({ color: '#ffffff33', lineWidth: 1, lineStyle: LineStyle.Dashed })
         .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: 25 })))
-      adx.addLineSeries({ color: '#ffffff1a', lineWidth: 1, lineStyle: 2 })
+      adx.addLineSeries({ color: '#ffffff1a', lineWidth: 1, lineStyle: LineStyle.Dashed })
         .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: 20 })))
     }
     allCharts.push(adx)
@@ -156,7 +157,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     price.timeScale().subscribeVisibleLogicalRangeChange(updateVisibleData)
     updateVisibleData()
 
-    // Sync all
+    // Sync all charts
     let isSyncing = false
     allCharts.forEach((source, si) => {
       source.timeScale().subscribeVisibleLogicalRangeChange(lr => {
@@ -214,7 +215,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       </div>
       <div className="pt-2">
         <div className="text-xs text-gray-500 mb-0.5">
-          ADX (14) — <span className="text-yellow-400">ADX</span> · <span className="text-green-400">+DI</span> · <span className="text-red-400">-DI</span> · dashed lines at 20 / 25
+          ADX (14) — <span className="text-yellow-400">ADX</span> · <span className="text-green-400">+DI</span> · <span className="text-red-400">-DI</span> · dashed at 20/25
         </div>
         <div ref={adxRef} className="w-full overflow-hidden" />
       </div>
