@@ -4,7 +4,7 @@ export function getLatestSignal(data) {
   if (!data || data.length < 30) return 'NEUTRAL'
   try {
     const ind = computeIndicators(data)
-    return computeCurrentSignal(data, ind)
+    return computeCurrentSignal(data, ind).overall
   } catch {
     return 'NEUTRAL'
   }

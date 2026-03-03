@@ -5,6 +5,9 @@ import { getLatestSignal } from '../utils/getLatestSignal'
 import { loadStocks } from '../utils/loadStocks'
 
 const THEME_ICONS = {
+  'FinTech & Crypto':    '💳',
+  'Consumer':            '🛒',
+  'Healthcare':         '🏥',
   'Hyperscalers':       '☁️',
   'AI & Semiconductors':'🤖',
   'Big Tech':           '📱',

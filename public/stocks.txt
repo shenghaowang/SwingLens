@@ -1,68 +1,61 @@
 # Format: [Theme Name] for group headers, tickers below, # for comments
 
 [Hyperscalers]
-MSFT
+GOOG
 AMZN
-GOOGL
 META
+MSFT
 ORCL
-SNOW
 
 [AI & Semiconductors]
 NVDA
 AVGO
-AMD
-QCOM
-ARM
-AMAT
-PLTR
-
-[Big Tech]
-AAPL
 TSLA
-ADBE
-CRM
-NOW
+PLTR
+APP
+VRT
+VST
+
+[FinTech & Crypto]
+SOFI
+HOOD
+CRCL
 
 [Moonshots]
-MSTR
-CRWD
-NET
+NBIS
+IREN
 RKLB
-IONQ
-SMCI
+RCAT
+ONDS
 
 [Financials]
+BRK-B
 JPM
-GS
+AXP
 V
 MA
-BLK
-MS
-AXP
 
-[Value & Dividend]
-BRK-B
+[Consumer]
+JNJ
+UNH
+LLY
+MRK
+
+[Healthcare]
 WMT
 COST
 HD
-JNJ
 PG
 KO
-
-[Defensive]
-UNH
-LLY
-ABBV
-MRK
-PFE
-XOM
-CVX
+MCD
 
 [ETFs & Indices]
-SPY
-QQQ
-IWM
-GLD
-TLT
-VIX
+VOO
+QQQM
+VTV
+SCHD
+SPMO
+MAGS
+SHLD
+GLDM
+COPX
