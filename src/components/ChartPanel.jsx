@@ -27,31 +27,28 @@ function makeChart(container, height, hideTimeScale = false) {
 }
 
 function setVisibleRange(charts, data, range) {
-  const to = data[data.length - 1].time
+  const to   = data[data.length - 1].time
   const from = to - (RANGE_SECONDS[range] ?? RANGE_SECONDS['1Y'])
   charts.forEach(c => { try { c.timeScale().setVisibleRange({ from, to }) } catch {} })
 }
 
 export default function ChartPanel({ data, indicators, signals, enabledMAs, range }) {
-  const priceRef  = useRef(null)
-  const volRef    = useRef(null)
-  const macdRef   = useRef(null)
-  const rsiRef    = useRef(null)
+  const priceRef = useRef(null)
+  const volRef   = useRef(null)
+  const macdRef  = useRef(null)
+  const rsiRef   = useRef(null)
+  const adxRef   = useRef(null)
   const chartsRef = useRef([])
   const [visibleData, setVisibleData] = useState(null)
 
   const hasVolume = data?.some(d => d.volume != null && d.volume > 0)
-
-  // Compute price range for visible data
   const priceRange = visibleData?.length
-    ? {
-        min: Math.min(...visibleData.map(d => d.low).filter(Boolean)),
-        max: Math.max(...visibleData.map(d => d.high).filter(Boolean)),
-      }
+    ? { min: Math.min(...visibleData.map(d => d.low).filter(Boolean)),
+        max: Math.max(...visibleData.map(d => d.high).filter(Boolean)) }
     : null
 
   useEffect(() => {
-    if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current) return
+    if (!data?.length || !priceRef.current || !macdRef.current || !rsiRef.current || !adxRef.current) return
 
     chartsRef.current.forEach(c => { try { c.remove() } catch {} })
     chartsRef.current = []
@@ -80,12 +77,13 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
         position: s.type === 'BUY' ? 'belowBar' : 'aboveBar',
         color: s.type === 'BUY' ? '#22c55e' : '#ef4444',
         shape: s.type === 'BUY' ? 'arrowUp' : 'arrowDown',
-        text: s.type,
+        text: s.source,
       })))
     }
 
-    // ── Volume bar chart ──
     const allCharts = [price]
+
+    // ── Volume ──
     if (hasVolume && volRef.current) {
       const vol = makeChart(volRef.current, 100, true)
       const volSeries = vol.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume' })
@@ -98,7 +96,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     }
 
     // ── MACD ──
-    const macd = makeChart(macdRef.current, 150, true)
+    const macd = makeChart(macdRef.current, 140, true)
     if (indicators?.macdResult) {
       const { macdResult, macdOffset } = indicators
       macd.addLineSeries({ color: '#38bdf8', lineWidth: 1, title: 'MACD' })
@@ -113,7 +111,7 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     allCharts.push(macd)
 
     // ── RSI ──
-    const rsi = makeChart(rsiRef.current, 130, false)
+    const rsi = makeChart(rsiRef.current, 120, true)
     if (indicators?.rsiResult) {
       const { rsiResult, rsiOffset } = indicators
       const rsiData = rsiResult.map((v, i) => ({ time: data[i + rsiOffset].time, value: v }))
@@ -123,31 +121,49 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
     }
     allCharts.push(rsi)
 
+    // ── ADX ──
+    const adx = makeChart(adxRef.current, 120, false)
+    if (indicators?.adxResult) {
+      const { adxResult, adxOffset } = indicators
+      // ADX line
+      adx.addLineSeries({ color: '#fbbf24', lineWidth: 2, title: 'ADX' })
+        .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.adx })))
+      // +DI
+      adx.addLineSeries({ color: '#22c55e', lineWidth: 1, title: '+DI' })
+        .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.pdi })))
+      // -DI
+      adx.addLineSeries({ color: '#ef4444', lineWidth: 1, title: '-DI' })
+        .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: v.mdi })))
+      // Threshold lines
+      adx.addLineSeries({ color: '#ffffff33', lineWidth: 1, lineStyle: 2 })
+        .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: 25 })))
+      adx.addLineSeries({ color: '#ffffff1a', lineWidth: 1, lineStyle: 2 })
+        .setData(adxResult.map((v, i) => ({ time: data[i + adxOffset].time, value: 20 })))
+    }
+    allCharts.push(adx)
+
     chartsRef.current = allCharts
     setVisibleRange(allCharts, data, range)
 
-    // Update visible data for volume profile
+    // Track visible data for volume profile
     const updateVisibleData = () => {
       try {
-        const logRange = price.timeScale().getVisibleLogicalRange()
-        if (!logRange) return
-        const from = Math.max(0, Math.floor(logRange.from))
-        const to   = Math.min(data.length - 1, Math.ceil(logRange.to))
-        setVisibleData(data.slice(from, to + 1))
+        const lr = price.timeScale().getVisibleLogicalRange()
+        if (!lr) return
+        setVisibleData(data.slice(Math.max(0, Math.floor(lr.from)), Math.min(data.length - 1, Math.ceil(lr.to)) + 1))
       } catch {}
     }
-
     price.timeScale().subscribeVisibleLogicalRangeChange(updateVisibleData)
     updateVisibleData()
 
-    // Sync all charts
+    // Sync all
     let isSyncing = false
     allCharts.forEach((source, si) => {
-      source.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
-        if (isSyncing || !logicalRange) return
+      source.timeScale().subscribeVisibleLogicalRangeChange(lr => {
+        if (isSyncing || !lr) return
         isSyncing = true
         allCharts.forEach((target, ti) => {
-          if (ti !== si) target.timeScale().setVisibleLogicalRange(logicalRange)
+          if (ti !== si) target.timeScale().setVisibleLogicalRange(lr)
           target.priceScale('right').applyOptions({ autoScale: true })
         })
         isSyncing = false
@@ -176,18 +192,12 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
 
   return (
     <div>
-      {/* Price chart with volume profile overlay */}
       <div style={{ position: 'relative' }}>
         <div ref={priceRef} className="w-full overflow-hidden" />
         {hasVolume && priceRange && (
-          <VolumeProfile
-            data={visibleData || data}
-            chartHeight={PRICE_CHART_HEIGHT}
-            priceRange={priceRange}
-          />
+          <VolumeProfile data={visibleData || data} chartHeight={PRICE_CHART_HEIGHT} priceRange={priceRange} />
         )}
       </div>
-
       {hasVolume && (
         <div className="pt-1">
           <div className="text-xs text-gray-500 mb-0.5">Volume</div>
@@ -200,7 +210,13 @@ export default function ChartPanel({ data, indicators, signals, enabledMAs, rang
       </div>
       <div className="pt-2">
         <div className="text-xs text-gray-500 mb-0.5">RSI (14)</div>
-        <div ref={rsiRef} className="w-full rounded-b-lg overflow-hidden" />
+        <div ref={rsiRef} className="w-full overflow-hidden" />
+      </div>
+      <div className="pt-2">
+        <div className="text-xs text-gray-500 mb-0.5">
+          ADX (14) — <span className="text-yellow-400">ADX</span> · <span className="text-green-400">+DI</span> · <span className="text-red-400">-DI</span> · dashed lines at 20 / 25
+        </div>
+        <div ref={adxRef} className="w-full overflow-hidden" />
       </div>
     </div>
   )
