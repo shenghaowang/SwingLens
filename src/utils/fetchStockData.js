@@ -1,35 +1,26 @@
-// ── Proxy Configuration ──────────────────────────────────────────────────────
-// corsproxy.io stopped working in March 2026.
-// Deploy the Cloudflare Worker in /cf-worker/worker.js (free, 2 min setup)
-// Then replace the URL below with your worker URL.
-const PROXY_BASE = import.meta.env.VITE_PROXY_BASE || ''
-
-function buildUrl(ticker) {
-  if (PROXY_BASE) {
-    // Cloudflare Worker proxy
-    return `${PROXY_BASE}/api/chart/${ticker}?range=5y&interval=1d`
-  }
-  // Direct Yahoo Finance — works locally, blocked by CORS in browser
-  return `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`
-}
-
 export async function fetchStockData(ticker) {
-  if (!PROXY_BASE) {
-    throw new Error(
-      `Data proxy not configured. Please deploy the Cloudflare Worker (see /cf-worker/README.md) and set VITE_PROXY_BASE in your GitHub repository secrets.`
-    )
-  }
+  const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yfUrl)}`
 
   let res
   try {
-    res = await fetch(buildUrl(ticker))
+    res = await fetch(proxyUrl)
   } catch {
     throw new Error(`Network error — unable to reach data provider. Check your connection.`)
   }
 
-  if (!res.ok) throw new Error(`Failed to fetch "${ticker}" (HTTP ${res.status})`)
+  if (!res.ok) throw new Error(`Proxy error for "${ticker}" (HTTP ${res.status})`)
 
-  const json = await res.json()
+  // allorigins wraps the response in { contents: "...", status: {...} }
+  const wrapper = await res.json()
+  if (!wrapper.contents) throw new Error(`No data returned for "${ticker}". The proxy may be unavailable.`)
+
+  let json
+  try {
+    json = JSON.parse(wrapper.contents)
+  } catch {
+    throw new Error(`Invalid data received for "${ticker}". Please try again.`)
+  }
 
   if (json.chart?.error) {
     throw new Error(`Invalid ticker "${ticker}": ${json.chart.error.description ?? 'symbol not found'}`)
@@ -46,11 +37,11 @@ export async function fetchStockData(ticker) {
   const timestamps = result.timestamp
   const quotes = result.indicators.quote[0]
   return timestamps.map((t, i) => ({
-    time:   t,
-    open:   quotes.open[i],
-    high:   quotes.high[i],
-    low:    quotes.low[i],
-    close:  quotes.close[i],
+    time: t,
+    open: quotes.open[i],
+    high: quotes.high[i],
+    low: quotes.low[i],
+    close: quotes.close[i],
     volume: quotes.volume[i],
   })).filter(d => d.close !== null)
 }
