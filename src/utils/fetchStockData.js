@@ -1,6 +1,6 @@
 // Always fetch full 5Y — time range selector controls the visible window, not the data
 export async function fetchStockData(ticker) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`
+  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`
   const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`
 
   let res
