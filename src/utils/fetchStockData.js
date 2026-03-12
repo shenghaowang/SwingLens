@@ -1,26 +1,40 @@
-export async function fetchStockData(ticker) {
+// Priority order of proxy strategies
+async function fetchWithFallback(ticker) {
   const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?range=5y&interval=1d`
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yfUrl)}`
 
-  let res
-  try {
-    res = await fetch(proxyUrl)
-  } catch {
-    throw new Error(`Network error — unable to reach data provider. Check your connection.`)
+  const strategies = [
+    // 1. Cloudflare Worker (set VITE_PROXY_URL in .env.production)
+    ...(import.meta.env.VITE_PROXY_URL
+      ? [() => fetch(`${import.meta.env.VITE_PROXY_URL}/${ticker}`)]
+      : []),
+
+    // 2. allorigins
+    () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(yfUrl)}`),
+
+    // 3. corsproxy.io old format
+    () => fetch(`https://corsproxy.io/?${encodeURIComponent(yfUrl)}`),
+  ]
+
+  let lastErr
+  for (const strategy of strategies) {
+    try {
+      const res = await Promise.race([
+        strategy(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+      ])
+      if (!res.ok) continue
+      const text = await res.text()
+      if (!text || text.trim().startsWith('<')) continue  // got HTML, not JSON
+      return JSON.parse(text)
+    } catch (e) {
+      lastErr = e
+    }
   }
+  throw new Error(`All data sources failed for "${ticker}". ${lastErr?.message ?? ''}`)
+}
 
-  if (!res.ok) throw new Error(`Proxy error for "${ticker}" (HTTP ${res.status})`)
-
-  // allorigins wraps the response in { contents: "...", status: {...} }
-  const wrapper = await res.json()
-  if (!wrapper.contents) throw new Error(`No data returned for "${ticker}". The proxy may be unavailable.`)
-
-  let json
-  try {
-    json = JSON.parse(wrapper.contents)
-  } catch {
-    throw new Error(`Invalid data received for "${ticker}". Please try again.`)
-  }
+export async function fetchStockData(ticker) {
+  const json = await fetchWithFallback(ticker)
 
   if (json.chart?.error) {
     throw new Error(`Invalid ticker "${ticker}": ${json.chart.error.description ?? 'symbol not found'}`)
@@ -37,11 +51,11 @@ export async function fetchStockData(ticker) {
   const timestamps = result.timestamp
   const quotes = result.indicators.quote[0]
   return timestamps.map((t, i) => ({
-    time: t,
-    open: quotes.open[i],
-    high: quotes.high[i],
-    low: quotes.low[i],
-    close: quotes.close[i],
+    time:   t,
+    open:   quotes.open[i],
+    high:   quotes.high[i],
+    low:    quotes.low[i],
+    close:  quotes.close[i],
     volume: quotes.volume[i],
   })).filter(d => d.close !== null)
 }
